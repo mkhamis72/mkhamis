@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import 'firebase_options.dart';
+import 'screens/admin/admin_home.dart';
 import 'screens/lecturer/lecturer_home.dart';
 import 'screens/lecturer/pending_approval_screen.dart';
 import 'screens/login_screen.dart';
@@ -55,7 +56,9 @@ class AuthGate extends StatelessWidget {
                 return StudentHome(studentId: personId);
               case 'lecturer':
                 if (claims['approved'] != true) return const PendingApprovalScreen();
-                return LecturerHome(isAdmin: claims['admin'] == true);
+                return const LecturerHome();
+              case 'admin':
+                return const AdminHome();
               default:
                 return const _NoRoleScreen();
             }

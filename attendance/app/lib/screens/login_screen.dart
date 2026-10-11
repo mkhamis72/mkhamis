@@ -19,6 +19,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _id = TextEditingController();
   final _name = TextEditingController();
   final _password = TextEditingController();
+  final _invite = TextEditingController();
   bool _register = false;
   String _role = 'student';
   bool _busy = false;
@@ -38,8 +39,15 @@ class _LoginScreenState extends State<LoginScreen> {
             password: _password.text,
             deviceId: await DeviceId.get(),
           );
+        } else if (_role == 'lecturer') {
+          await Api.registerLecturer(
+            staffId: _id.text.trim(),
+            name: _name.text.trim(),
+            password: _password.text,
+            inviteCode: _invite.text.trim().isEmpty ? null : _invite.text.trim(),
+          );
         } else {
-          await Api.registerLecturer(staffId: _id.text.trim(), name: _name.text.trim(), password: _password.text);
+          await Api.registerAdmin(staffId: _id.text.trim(), name: _name.text.trim(), password: _password.text);
         }
       }
       await FirebaseAuth.instance.signInWithEmailAndPassword(email: emailForId(_id.text), password: _password.text);
@@ -58,7 +66,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final idLabel = _register && _role == 'lecturer' ? 'Staff ID' : (_register ? 'Student ID' : 'ID');
+    final idLabel = !_register ? 'ID' : (_role == 'student' ? 'Student ID' : 'Staff ID');
     return Scaffold(
       body: Center(
         child: SingleChildScrollView(
@@ -87,8 +95,10 @@ class _LoginScreenState extends State<LoginScreen> {
                   segments: const [
                     ButtonSegment(value: 'student', icon: Icon(Icons.school), label: Text('Student')),
                     ButtonSegment(value: 'lecturer', icon: Icon(Icons.co_present), label: Text('Lecturer')),
+                    ButtonSegment(value: 'admin', icon: Icon(Icons.admin_panel_settings), label: Text('Admin')),
                   ],
                   selected: {_role},
+                  showSelectedIcon: false,
                   onSelectionChanged: (s) => setState(() => _role = s.first),
                 ),
                 const SizedBox(height: 16),
@@ -113,6 +123,23 @@ class _LoginScreenState extends State<LoginScreen> {
                 decoration: const InputDecoration(labelText: 'Password', border: OutlineInputBorder()),
                 onSubmitted: (_) => _submit(),
               ),
+              if (_register && _role == 'lecturer') ...[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _invite,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: const InputDecoration(
+                    labelText: 'Invite code (optional)',
+                    helperText: 'With a code from the admin your account is ready at once. Without one, an admin must approve it.',
+                    helperMaxLines: 2,
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
+              if (_register && _role == 'admin') ...[
+                const SizedBox(height: 8),
+                Text('Only Staff IDs on the admin list can register as admin.', style: Theme.of(context).textTheme.bodySmall),
+              ],
               if (_register && _role == 'student') ...[
                 const SizedBox(height: 8),
                 Text('This phone becomes your attendance phone.', style: Theme.of(context).textTheme.bodySmall),

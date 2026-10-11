@@ -19,8 +19,20 @@ class Api {
   }) =>
       _call('registerStudent', {'studentId': studentId, 'name': name, 'password': password, 'deviceId': deviceId});
 
-  static Future<void> registerLecturer({required String staffId, required String name, required String password}) =>
-      _call('registerLecturer', {'staffId': staffId, 'name': name, 'password': password});
+  /// Returns true when a valid invite code approved the account straight away.
+  static Future<bool> registerLecturer({
+    required String staffId,
+    required String name,
+    required String password,
+    String? inviteCode,
+  }) async {
+    final res = await _call('registerLecturer',
+        {'staffId': staffId, 'name': name, 'password': password, 'inviteCode': inviteCode});
+    return res['approved'] == true;
+  }
+
+  static Future<void> registerAdmin({required String staffId, required String name, required String password}) =>
+      _call('registerAdmin', {'staffId': staffId, 'name': name, 'password': password});
 
   // Student
   static Future<Map<String, dynamic>> deviceStatus(String deviceId) => _call('deviceStatus', {'deviceId': deviceId});
@@ -64,12 +76,18 @@ class Api {
   static Future<void> updateSession(String sessionId, String action, {int? minutes}) =>
       _call('updateSession', {'sessionId': sessionId, 'action': action, 'minutes': minutes});
 
-  // Admin (a lecturer with the admin flag)
+  static Future<void> removeAttendance(String sessionId, String studentId) =>
+      _call('removeAttendance', {'sessionId': sessionId, 'studentId': studentId});
+
+  // Admin
   static Future<void> approveLecturer(String staffId, bool approve) =>
       _call('approveLecturer', {'staffId': staffId, 'approve': approve});
 
-  static Future<void> removeAttendance(String sessionId, String studentId) =>
-      _call('removeAttendance', {'sessionId': sessionId, 'studentId': studentId});
+  /// Single-use code for a lecturer; [staffId] optionally locks it to one person.
+  static Future<Map<String, dynamic>> createInvite({String? staffId, String? note}) =>
+      _call('createInvite', {'staffId': staffId, 'note': note});
+
+  static Future<void> revokeInvite(String code) => _call('revokeInvite', {'code': code});
 }
 
 /// Readable text for a failed callable.

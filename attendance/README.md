@@ -2,7 +2,7 @@
 
 Students sign attendance by scanning a QR code in the lecture hall. The design blocks the usual trick of sending a photo of the QR to friends who aren't in class.
 
-There are only **two roles**, and both sign up in the app themselves. Lecturer accounts need **admin confirmation**. An admin is simply a lecturer whose Staff ID is listed in the server config.
+There are **three roles**, and everyone signs up in the app themselves: **Student**, **Lecturer** and **Admin**. Lecturer accounts must be accepted by an admin, either with an **invite code** the admin sends (instant) or by **manual approval**.
 
 **Student**
 - Registers once: Student ID, full name, password. Each ID can be registered only once, and the registering phone becomes the student's attendance phone.
@@ -10,11 +10,17 @@ There are only **two roles**, and both sign up in the app themselves. Lecturer a
 - New or lost phone: sign in on the new phone and tap **Use this phone**. The new phone works **from the next class**. It can't sign a class that had already started when the switch was made.
 
 **Lecturer**
-- Registers with Staff ID, full name, password. The account waits on an "awaiting approval" screen until an **admin approves** it, and only then can it create QR codes.
-- **Admins** (lecturers listed in `ADMIN_STAFF_IDS`) get an extra **Approvals** tab: approve or reject (which deletes the account) pending lecturers. Admin accounts are approved automatically when they register.
+- Registers with Staff ID, full name, password and an optional **invite code**:
+  - **With a valid code** the account is ready at once.
+  - **Without a code** it waits on an "awaiting approval" screen until an admin approves it.
 - **New QR:** Subject, Hall name, **GPS location** (stand in the hall and tap *Use my current location*) + allowed radius, **QR type Rotating / Static**, anti-cheat toggles. Recently used subject/hall/location sets appear as one-tap picks.
 - Live QR screen (projector or phone): live count, pause / resume, regenerate, extend time, end. A static QR can be printed or saved as PDF.
 - **Attended students:** per session, and across all sessions with date range + search. Flagged scans are marked, an entry can be removed, and either list exports to CSV.
+
+**Admin**
+- Registers with a Staff ID listed in `ADMIN_STAFF_IDS` (server config). No other ID can register as admin.
+- **Invite codes:** create a single-use code (valid 7 days), optionally locked to one Staff ID, and **send it** through the phone's share sheet (WhatsApp, SMS, e-mail…) or copy it. The list shows each code as active, used (by whom) or expired; an unused code can be revoked.
+- **Approvals:** approve, or reject (which deletes the account), lecturers who registered without a code.
 
 ## How cheating is blocked (all checks run on the server)
 
@@ -23,7 +29,7 @@ There are only **two roles**, and both sign up in the app themselves. Lecturer a
 | **Rotating QR** | The QR is HMAC-signed and changes every 10 s, and the server accepts about 30 s at most. A forwarded screenshot is dead on arrival. Needs internet on the lecturer's device. | Lecturer picks the QR type |
 | **Static QR** | For halls without a live screen. The code can be printed, so the **geofence is always enforced** for it. | Lecturer picks the QR type |
 | **Geofence** | The phone must be within the hall radius (+ up to 30 m of GPS slack). Fixes with poor accuracy (>100 m) and mock locations are rejected. Scans accepted only thanks to the slack are **flagged**. | Toggle (forced on for static) |
-| **Lecturer approval** | Only lecturers approved by an admin can create sessions; the server rejects every lecturer call from an unapproved account. | Always |
+| **Lecturer acceptance** | Only lecturers accepted by an admin (invite code or approval) can create sessions; the server rejects every lecturer call from an unaccepted account. Invite codes are single-use, expire after 7 days, and can be locked to a Staff ID. | Always |
 | **Device binding** | An account only signs from its own phone, and a phone can't sign two students into the same session. A **phone switch only counts for sessions that start after it**, so a student can't switch phones in class to sign a friend in. | Toggle |
 | **Time window** | Scans are only accepted for N minutes after the session starts (the lecturer can extend). | Toggle |
 | **Regenerate** | Issues a new secret, so every code shown or printed earlier stops working. | Button on the live screen |
@@ -39,7 +45,7 @@ The app never writes attendance itself: `firestore.rules` block all client write
 ## Setup
 
 1. Create a Firebase project and enable **Authentication → Email/Password**, **Firestore** and **Functions** (Blaze plan).
-2. Choose who can approve lecturers: copy `functions/.env.example` to `functions/.env` and set `ADMIN_STAFF_IDS=L001,L002` (staff IDs). Those lecturers are approved and made admins when they register in the app. **Register the admin accounts right after deploying**: whoever registers first with a listed ID becomes that admin.
+2. Choose the admins: copy `functions/.env.example` to `functions/.env` and set `ADMIN_STAFF_IDS=A001,A002` (staff IDs). Only these IDs can use *Register → Admin*. **Register the admin accounts right after deploying**: whoever registers first with a listed ID becomes that admin.
 3. Deploy the backend:
    ```bash
    cd attendance/functions && npm install && npm test
@@ -58,7 +64,7 @@ Users sign in with their **ID + password**. Behind the scenes the ID is mapped t
 ## Tests
 
 ```bash
-cd functions && npm test     # QR signing/expiry, geofence, device binding + phone-switch rule, time window, toggles, static-mode rule, registration validation, admin ID list
+cd functions && npm test     # QR signing/expiry, geofence, device binding + phone-switch rule, time window, toggles, static-mode rule, registration validation, admin ID list, invite codes
 cd app && flutter analyze && flutter test
 ```
 
@@ -67,5 +73,5 @@ cd app && flutter analyze && flutter test
 - Indoor GPS can be 20–50 m off. Pick a radius that covers the room, and check the flagged scans.
 - A rooted phone can spoof GPS without the OS noticing. Rotating QR + device binding are the main defence, and the geofence is a second layer.
 - A student who is actually in the hall can still read a live code out to someone over a video call. Compare the count with a quick headcount if this happens.
-- Adding or removing an admin means changing `ADMIN_STAFF_IDS` and redeploying. The list only applies at registration, so an existing account has to have its claims changed in the Firebase console.
+- Adding an admin means adding the ID to `ADMIN_STAFF_IDS` and redeploying. The list is only checked at registration, so removing an existing admin means deleting that account in the Firebase console.
 - There is no password reset yet. A forgotten password has to be reset in the Firebase console.

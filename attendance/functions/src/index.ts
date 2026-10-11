@@ -6,7 +6,16 @@ import { CallableRequest, HttpsError, onCall } from "firebase-functions/v2/https
 import { effectiveSettings, evaluateScan, REASON_MESSAGES, SessionDoc, SessionSettings } from "./checks";
 import { LocationFix } from "./geo";
 import { buildPayload, decodePayload, encodePayload, newSecret, QrMode, SLOT_SECONDS, slotAt } from "./qr";
-import { emailForId, parseAdminIds, Role, validateRegistration } from "./roster";
+import {
+  emailForId,
+  INVITE_VALID_DAYS,
+  inviteProblem,
+  newInviteCode,
+  normalizeInviteCode,
+  parseAdminIds,
+  Role,
+  validateRegistration,
+} from "./roster";
 
 initializeApp();
 const db = getFirestore();
@@ -14,10 +23,7 @@ const db = getFirestore();
 /** Most recent subject/hall/location sets kept per lecturer for quick re-use. */
 const RECENT_PLACES = 10;
 
-/**
- * Staff IDs (comma separated, set in functions/.env) that become admins when they register.
- * Admins are lecturers who can also approve new lecturer accounts.
- */
+/** Staff IDs (comma separated, set in functions/.env) allowed to register as admins. */
 const ADMIN_STAFF_IDS = defineString("ADMIN_STAFF_IDS", { default: "" });
 
 function requireRole(req: CallableRequest, role: Role): { uid: string; personId: string } {
@@ -27,12 +33,12 @@ function requireRole(req: CallableRequest, role: Role): { uid: string; personId:
   return { uid: req.auth.uid, personId: String(token.personId ?? "") };
 }
 
-/** Lecturer calls need an approved account; `admin` calls also need the admin flag. */
-function requireLecturer(req: CallableRequest, opts: { admin?: boolean } = {}): { uid: string; personId: string } {
+/** Lecturer calls need an account approved by an admin (directly or via an invite code). */
+function requireLecturer(req: CallableRequest): { uid: string; personId: string } {
   const who = requireRole(req, "lecturer");
-  const token = req.auth!.token;
-  if (token.approved !== true) throw new HttpsError("permission-denied", "Your lecturer account is waiting for admin approval.");
-  if (opts.admin && token.admin !== true) throw new HttpsError("permission-denied", "Only admins can do this.");
+  if (req.auth!.token.approved !== true) {
+    throw new HttpsError("permission-denied", "Your lecturer account is waiting for admin approval.");
+  }
   return who;
 }
 
@@ -61,7 +67,7 @@ function cleanSettings(raw: unknown, mode: QrMode): SessionSettings {
 }
 
 // ---------------------------------------------------------------------------
-// Registration (self-service, two roles)
+// Registration (self-service)
 // ---------------------------------------------------------------------------
 
 async function createAccount(
@@ -101,29 +107,70 @@ export const registerStudent = onCall(async (req) => {
   return { ok: true };
 });
 
-/** Lecturer signs up; an admin must approve the account before it can create QR codes. */
+/**
+ * Lecturer signs up. With a valid invite code from an admin the account is approved at once;
+ * without one it waits until an admin approves it.
+ */
 export const registerLecturer = onCall(async (req) => {
   const { staffId, name, password } = req.data ?? {};
   const id = String(staffId ?? "").trim();
-  const admin = parseAdminIds(ADMIN_STAFF_IDS.value()).has(id.toLowerCase());
-  const uid = await createAccount(id, String(name ?? ""), String(password ?? ""), "lecturer", {
-    approved: admin,
-    admin,
-  });
+  const code = normalizeInviteCode(String(req.data?.inviteCode ?? ""));
+  const problem = validateRegistration(id, String(name ?? ""), String(password ?? ""));
+  if (problem) throw new HttpsError("invalid-argument", problem);
+
+  // Reserve the invite before creating the account, so one code can't approve two lecturers.
+  const inviteRef = code ? db.collection("invites").doc(code) : null;
+  if (inviteRef) {
+    await db.runTransaction(async (tx) => {
+      const snap = await tx.get(inviteRef);
+      const invite = snap.exists
+        ? { usedBy: snap.get("usedBy"), staffId: snap.get("staffId"), expiresAtMs: (snap.get("expiresAt") as Timestamp).toMillis() }
+        : undefined;
+      const reason = inviteProblem(invite, id, Date.now());
+      if (reason) throw new HttpsError("failed-precondition", reason);
+      tx.update(inviteRef, { usedBy: id, usedAt: Timestamp.now() });
+    });
+  }
+
+  const approved = inviteRef !== null;
+  let uid: string;
+  try {
+    uid = await createAccount(id, String(name ?? ""), String(password ?? ""), "lecturer", { approved });
+  } catch (e) {
+    // Account not created (e.g. ID already registered): give the invite back.
+    if (inviteRef) await inviteRef.update({ usedBy: null, usedAt: null });
+    throw e;
+  }
   await db.collection("staff").doc(id).set({
     name: String(name).trim(),
     authUid: uid,
-    status: admin ? "approved" : "pending",
-    admin,
+    status: approved ? "approved" : "pending",
+    approvedBy: approved ? `invite:${code}` : null,
     createdAt: Timestamp.now(),
     recentPlaces: [],
   });
-  return { ok: true, approved: admin };
+  return { ok: true, approved };
 });
 
-/** Admin approves (claims updated) or rejects (account deleted) a pending lecturer. */
+/** Admins self-register too, but only with a staff ID listed in ADMIN_STAFF_IDS. */
+export const registerAdmin = onCall(async (req) => {
+  const { staffId, name, password } = req.data ?? {};
+  const id = String(staffId ?? "").trim();
+  if (!parseAdminIds(ADMIN_STAFF_IDS.value()).has(id.toLowerCase())) {
+    throw new HttpsError("permission-denied", "This Staff ID is not on the admin list.");
+  }
+  const uid = await createAccount(id, String(name ?? ""), String(password ?? ""), "admin");
+  await db.collection("admins").doc(id).set({ name: String(name).trim(), authUid: uid, createdAt: Timestamp.now() });
+  return { ok: true };
+});
+
+// ---------------------------------------------------------------------------
+// Admin
+// ---------------------------------------------------------------------------
+
+/** Approves (claims updated) or rejects (account deleted) a lecturer who registered without a code. */
 export const approveLecturer = onCall(async (req) => {
-  const { personId: adminId } = requireLecturer(req, { admin: true });
+  const { personId: adminId } = requireRole(req, "admin");
   const staffId = String(req.data?.staffId ?? "");
   const ref = db.collection("staff").doc(staffId);
   const snap = await ref.get();
@@ -131,12 +178,51 @@ export const approveLecturer = onCall(async (req) => {
   if (snap.get("status") !== "pending") throw new HttpsError("failed-precondition", "This account is not pending.");
   const authUid = snap.get("authUid") as string;
   if (req.data?.approve === true) {
-    await getAuth().setCustomUserClaims(authUid, { role: "lecturer", personId: staffId, approved: true, admin: false });
+    await getAuth().setCustomUserClaims(authUid, { role: "lecturer", personId: staffId, approved: true });
     await ref.update({ status: "approved", approvedBy: adminId, approvedAt: Timestamp.now() });
   } else {
     await getAuth().deleteUser(authUid);
     await ref.delete();
   }
+  return { ok: true };
+});
+
+/** Creates a single-use invite code to send to a lecturer, optionally locked to their staff ID. */
+export const createInvite = onCall(async (req) => {
+  const { personId: adminId } = requireRole(req, "admin");
+  const staffId = String(req.data?.staffId ?? "").trim() || null;
+  const note = String(req.data?.note ?? "").trim().slice(0, 100) || null;
+  const expiresAt = Timestamp.fromMillis(Date.now() + INVITE_VALID_DAYS * 86_400_000);
+  // Retry on the (very unlikely) chance the random code already exists.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = newInviteCode();
+    try {
+      await db.collection("invites").doc(code).create({
+        createdBy: adminId,
+        createdAt: Timestamp.now(),
+        expiresAt,
+        staffId,
+        note,
+        usedBy: null,
+      });
+      return { code, expiresAtMs: expiresAt.toMillis() };
+    } catch (e) {
+      if ((e as { code?: number }).code !== 6 /* ALREADY_EXISTS */) throw e;
+    }
+  }
+  throw new HttpsError("internal", "Could not create a code. Try again.");
+});
+
+/** Cancels an unused invite code. */
+export const revokeInvite = onCall(async (req) => {
+  requireRole(req, "admin");
+  const ref = db.collection("invites").doc(normalizeInviteCode(String(req.data?.code ?? "")));
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref);
+    if (!snap.exists) return;
+    if (snap.get("usedBy")) throw new HttpsError("failed-precondition", "This code has already been used.");
+    tx.delete(ref);
+  });
   return { ok: true };
 });
 

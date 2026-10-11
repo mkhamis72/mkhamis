@@ -1,7 +1,14 @@
 import { evaluateScan, ScanContext } from "../src/checks";
 import { checkGeofence, distanceMeters } from "../src/geo";
 import { buildPayload, decodePayload, encodePayload, SLOT_SECONDS, verifyPayload } from "../src/qr";
-import { emailForId, parseAdminIds, validateRegistration } from "../src/roster";
+import {
+  emailForId,
+  inviteProblem,
+  newInviteCode,
+  normalizeInviteCode,
+  parseAdminIds,
+  validateRegistration,
+} from "../src/roster";
 
 const SECRET = "test-secret";
 const NOW = 1_760_000_000_000;
@@ -161,5 +168,31 @@ describe("registration", () => {
   it("parses the admin staff ID list", () => {
     expect([...parseAdminIds(" L001, l002;L003\n")]).toEqual(["l001", "l002", "l003"]);
     expect(parseAdminIds("").size).toBe(0);
+  });
+});
+
+describe("invite codes", () => {
+  it("generates readable 8-character codes", () => {
+    const code = newInviteCode();
+    expect(code).toMatch(/^[A-HJKMNP-Z2-9]{8}$/);
+    expect(new Set(Array.from({ length: 50 }, () => newInviteCode())).size).toBe(50);
+  });
+
+  it("normalises what the lecturer types", () => {
+    expect(normalizeInviteCode(" abcd-efgh ")).toBe("ABCDEFGH");
+  });
+
+  it("accepts a valid code and explains invalid ones", () => {
+    const valid = { usedBy: null, expiresAtMs: NOW + 1000, staffId: null };
+    expect(inviteProblem(valid, "L9", NOW)).toBeNull();
+    expect(inviteProblem(undefined, "L9", NOW)).toMatch(/not found/);
+    expect(inviteProblem({ ...valid, usedBy: "L1" }, "L9", NOW)).toMatch(/already been used/);
+    expect(inviteProblem({ ...valid, expiresAtMs: NOW - 1 }, "L9", NOW)).toMatch(/expired/);
+  });
+
+  it("enforces a code locked to a staff ID (case-insensitive)", () => {
+    const locked = { usedBy: null, expiresAtMs: NOW + 1000, staffId: "L007" };
+    expect(inviteProblem(locked, "l007", NOW)).toBeNull();
+    expect(inviteProblem(locked, "L008", NOW)).toMatch(/different Staff ID/);
   });
 });
