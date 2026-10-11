@@ -1,0 +1,20 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "App (Chrome)",
+      "type": "dart",
+      "request": "launch",
+      "cwd": "app",
+      "program": "lib/main.dart",
+      "deviceId": "chrome"
+    },
+    {
+      "name": "App (device)",
+      "type": "dart",
+      "request": "launch",
+      "cwd": "app",
+      "program": "lib/main.dart"
+    }
+  ]
+}

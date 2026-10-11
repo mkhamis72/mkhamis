@@ -38,6 +38,22 @@ There are **three roles**, and everyone signs up in the app themselves: **Studen
 
 The app never writes attendance itself: `firestore.rules` block all client writes, and QR secrets are never readable.
 
+## Documentation
+
+| Doc | Contents |
+|---|---|
+| [docs/PRD.md](docs/PRD.md) | Product requirements: goals, roles, user stories + acceptance criteria |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Components, repo layout, key flows, design decisions |
+| [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | Firestore collections, fields, claims, indexes |
+| [docs/API.md](docs/API.md) | Every Cloud Function: auth, input, output, errors; QR payload format |
+| [docs/SECURITY.md](docs/SECURITY.md) | Threat model, scan check order, rules, invariants |
+| [docs/UI_SPEC.md](docs/UI_SPEC.md) | Screens, navigation, fields, states |
+| [docs/TEST_PLAN.md](docs/TEST_PLAN.md) | Automated tests + manual end-to-end checklist |
+| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | VS Code setup, run, emulators, deploy, phone builds |
+| [CLAUDE.md](CLAUDE.md) | Instructions for Claude Code (commands, rules, conventions) |
+
+Open the `attendance/` folder in VS Code: recommended extensions, run configurations (App (Chrome), App (device)) and tasks (`check: all`, tests, emulators) are set up in `.vscode/`.
+
 ## Layout
 
 - `app/`: Flutter app (Android, iOS, Web).
