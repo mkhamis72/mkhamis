@@ -24,10 +24,20 @@ class Api {
     required String staffId,
     required String name,
     required String password,
+    required String university,
+    required String mobile,
+    required String email,
     String? inviteCode,
   }) async {
-    final res = await _call('registerLecturer',
-        {'staffId': staffId, 'name': name, 'password': password, 'inviteCode': inviteCode});
+    final res = await _call('registerLecturer', {
+      'staffId': staffId,
+      'name': name,
+      'password': password,
+      'university': university,
+      'mobile': mobile,
+      'email': email,
+      'inviteCode': inviteCode,
+    });
     return res['approved'] == true;
   }
 
@@ -75,6 +85,14 @@ class Api {
   /// action: pause | resume | end | regenerate | extend
   static Future<void> updateSession(String sessionId, String action, {int? minutes}) =>
       _call('updateSession', {'sessionId': sessionId, 'action': action, 'minutes': minutes});
+
+  static Future<void> updateLecturerProfile({
+    required String name,
+    required String university,
+    required String mobile,
+    required String email,
+  }) =>
+      _call('updateLecturerProfile', {'name': name, 'university': university, 'mobile': mobile, 'email': email});
 
   static Future<void> removeAttendance(String sessionId, String studentId) =>
       _call('removeAttendance', {'sessionId': sessionId, 'studentId': studentId});

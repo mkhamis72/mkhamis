@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'attendance_list_screen.dart';
 import 'create_session_screen.dart';
 import 'live_session_screen.dart';
+import 'profile_screen.dart';
 import 'session_report_screen.dart';
 
 class LecturerHome extends StatelessWidget {
@@ -27,6 +28,11 @@ class LecturerHome extends StatelessWidget {
         appBar: AppBar(
           title: Text(FirebaseAuth.instance.currentUser?.displayName ?? 'Lecturer'),
           actions: [
+            IconButton(
+              tooltip: 'My details',
+              icon: const Icon(Icons.account_circle),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
+            ),
             IconButton(tooltip: 'Sign out', icon: const Icon(Icons.logout), onPressed: () => FirebaseAuth.instance.signOut()),
           ],
           bottom: const TabBar(tabs: [Tab(text: 'Sessions'), Tab(text: 'Attended students')]),

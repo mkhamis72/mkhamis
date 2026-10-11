@@ -10,9 +10,10 @@ There are **three roles**, and everyone signs up in the app themselves: **Studen
 - New or lost phone: sign in on the new phone and tap **Use this phone**. The new phone works **from the next class**. It can't sign a class that had already started when the switch was made.
 
 **Lecturer**
-- Registers with Staff ID, full name, password and an optional **invite code**:
+- Registers with Staff ID, **full name, university, mobile, email**, password and an optional **invite code**:
   - **With a valid code** the account is ready at once.
   - **Without a code** it waits on an "awaiting approval" screen until an admin approves it.
+- **My details** (person icon, also reachable while waiting for approval): edit name, university, mobile and email.
 - **New QR:** Subject, Hall name, **GPS location** (stand in the hall and tap *Use my current location*) + allowed radius, **QR type Rotating / Static**, anti-cheat toggles. Recently used subject/hall/location sets appear as one-tap picks.
 - Live QR screen (projector or phone): live count, pause / resume, regenerate, extend time, end. A static QR can be printed or saved as PDF.
 - **Attended students:** per session, and across all sessions with date range + search. Flagged scans are marked, an entry can be removed, and either list exports to CSV.
@@ -20,7 +21,7 @@ There are **three roles**, and everyone signs up in the app themselves: **Studen
 **Admin**
 - Registers with a Staff ID listed in `ADMIN_STAFF_IDS` (server config). No other ID can register as admin.
 - **Invite codes:** create a single-use code (valid 7 days), optionally locked to one Staff ID, and **send it** through the phone's share sheet (WhatsApp, SMS, e-mail…) or copy it. The list shows each code as active, used (by whom) or expired; an unused code can be revoked.
-- **Approvals:** approve, or reject (which deletes the account), lecturers who registered without a code.
+- **Approvals:** see each waiting lecturer's name, university, mobile and email, then approve, or reject (which deletes the account), lecturers who registered without a code.
 
 ## How cheating is blocked (all checks run on the server)
 
@@ -64,7 +65,7 @@ Users sign in with their **ID + password**. Behind the scenes the ID is mapped t
 ## Tests
 
 ```bash
-cd functions && npm test     # QR signing/expiry, geofence, device binding + phone-switch rule, time window, toggles, static-mode rule, registration validation, admin ID list, invite codes
+cd functions && npm test     # QR signing/expiry, geofence, device binding + phone-switch rule, time window, toggles, static-mode rule, registration validation, lecturer details, admin ID list, invite codes
 cd app && flutter analyze && flutter test
 ```
 

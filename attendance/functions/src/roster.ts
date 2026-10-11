@@ -53,3 +53,26 @@ export function inviteProblem(invite: Invite | undefined, staffId: string, nowMs
   }
   return null;
 }
+
+export interface LecturerDetails {
+  university: string;
+  mobile: string;
+  email: string;
+}
+
+/** Trims the lecturer's contact details; returns them with an error message (null when valid). */
+export function cleanLecturerDetails(raw: Record<string, unknown>): { details: LecturerDetails; problem: string | null } {
+  const details = {
+    university: String(raw.university ?? "").trim(),
+    mobile: String(raw.mobile ?? "").trim(),
+    email: String(raw.email ?? "").trim().toLowerCase(),
+  };
+  let problem: string | null = null;
+  if (details.university.length < 2 || details.university.length > 100) problem = "Enter your university.";
+  else if (!/^\+?[\d\s()-]{7,20}$/.test(details.mobile) || details.mobile.replace(/\D/g, "").length < 7) {
+    problem = "Enter a valid mobile number.";
+  } else if (details.email.length > 100 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(details.email)) {
+    problem = "Enter a valid email address.";
+  }
+  return { details, problem };
+}

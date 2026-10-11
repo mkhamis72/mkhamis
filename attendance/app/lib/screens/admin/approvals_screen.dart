@@ -48,9 +48,14 @@ class ApprovalsScreen extends StatelessWidget {
               ListTile(
                 leading: const Icon(Icons.person_outline),
                 title: Text('${d['name']} (${d.id})'),
-                subtitle: d.data()['createdAt'] is Timestamp
-                    ? Text('Registered ${fmt.format((d['createdAt'] as Timestamp).toDate())}')
-                    : null,
+                subtitle: Text([
+                  if (d.data()['university'] != null) '${d['university']}',
+                  if (d.data()['mobile'] != null) '📞 ${d['mobile']}',
+                  if (d.data()['email'] != null) '✉ ${d['email']}',
+                  if (d.data()['createdAt'] is Timestamp)
+                    'Registered ${fmt.format((d['createdAt'] as Timestamp).toDate())}',
+                ].join('\n')),
+                isThreeLine: true,
                 trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                   IconButton(
                     tooltip: 'Reject',

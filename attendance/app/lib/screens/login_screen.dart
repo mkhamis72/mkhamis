@@ -20,6 +20,9 @@ class _LoginScreenState extends State<LoginScreen> {
   final _name = TextEditingController();
   final _password = TextEditingController();
   final _invite = TextEditingController();
+  final _university = TextEditingController();
+  final _mobile = TextEditingController();
+  final _email = TextEditingController();
   bool _register = false;
   String _role = 'student';
   bool _busy = false;
@@ -44,6 +47,9 @@ class _LoginScreenState extends State<LoginScreen> {
             staffId: _id.text.trim(),
             name: _name.text.trim(),
             password: _password.text,
+            university: _university.text.trim(),
+            mobile: _mobile.text.trim(),
+            email: _email.text.trim(),
             inviteCode: _invite.text.trim().isEmpty ? null : _invite.text.trim(),
           );
         } else {
@@ -113,6 +119,29 @@ class _LoginScreenState extends State<LoginScreen> {
                 TextField(
                   controller: _name,
                   decoration: const InputDecoration(labelText: 'Full name', border: OutlineInputBorder()),
+                  textInputAction: TextInputAction.next,
+                ),
+              ],
+              if (_register && _role == 'lecturer') ...[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _university,
+                  decoration: const InputDecoration(labelText: 'University', border: OutlineInputBorder()),
+                  textInputAction: TextInputAction.next,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _mobile,
+                  keyboardType: TextInputType.phone,
+                  decoration: const InputDecoration(labelText: 'Mobile', border: OutlineInputBorder()),
+                  textInputAction: TextInputAction.next,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _email,
+                  keyboardType: TextInputType.emailAddress,
+                  autocorrect: false,
+                  decoration: const InputDecoration(labelText: 'Email', border: OutlineInputBorder()),
                   textInputAction: TextInputAction.next,
                 ),
               ],

@@ -7,6 +7,7 @@ import { effectiveSettings, evaluateScan, REASON_MESSAGES, SessionDoc, SessionSe
 import { LocationFix } from "./geo";
 import { buildPayload, decodePayload, encodePayload, newSecret, QrMode, SLOT_SECONDS, slotAt } from "./qr";
 import {
+  cleanLecturerDetails,
   emailForId,
   INVITE_VALID_DAYS,
   inviteProblem,
@@ -117,6 +118,8 @@ export const registerLecturer = onCall(async (req) => {
   const code = normalizeInviteCode(String(req.data?.inviteCode ?? ""));
   const problem = validateRegistration(id, String(name ?? ""), String(password ?? ""));
   if (problem) throw new HttpsError("invalid-argument", problem);
+  const { details, problem: detailsProblem } = cleanLecturerDetails(req.data ?? {});
+  if (detailsProblem) throw new HttpsError("invalid-argument", detailsProblem);
 
   // Reserve the invite before creating the account, so one code can't approve two lecturers.
   const inviteRef = code ? db.collection("invites").doc(code) : null;
@@ -143,6 +146,7 @@ export const registerLecturer = onCall(async (req) => {
   }
   await db.collection("staff").doc(id).set({
     name: String(name).trim(),
+    ...details,
     authUid: uid,
     status: approved ? "approved" : "pending",
     approvedBy: approved ? `invite:${code}` : null,
@@ -150,6 +154,18 @@ export const registerLecturer = onCall(async (req) => {
     recentPlaces: [],
   });
   return { ok: true, approved };
+});
+
+/** Lecturer edits their own name and contact details (works while pending approval too). */
+export const updateLecturerProfile = onCall(async (req) => {
+  const { uid, personId } = requireRole(req, "lecturer");
+  const name = String(req.data?.name ?? "").trim();
+  if (name.length < 2 || name.length > 80) throw new HttpsError("invalid-argument", "Enter your full name.");
+  const { details, problem } = cleanLecturerDetails(req.data ?? {});
+  if (problem) throw new HttpsError("invalid-argument", problem);
+  await db.collection("staff").doc(personId).update({ name, ...details });
+  await getAuth().updateUser(uid, { displayName: name });
+  return { ok: true };
 });
 
 /** Admins self-register too, but only with a staff ID listed in ADMIN_STAFF_IDS. */
