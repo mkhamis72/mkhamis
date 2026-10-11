@@ -17,3 +17,7 @@ jspm with AngularJS | [jspm-angular](jspm-angular/)
 RequireJS with Knockout | [requirejs-knockout](requirejs-knockout/)
 webpack with Knockout | [webpack-knockout](webpack-knockout/)
 jspm with Knockout | [jspm-knockout](jspm-knockout/)
+
+## Class Attendance app
+
+[attendance/](attendance/): Flutter + Firebase app for taking class attendance by QR code (rotating or static), with location, device and time-window checks against shared QR codes.

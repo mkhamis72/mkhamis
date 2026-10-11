@@ -1,0 +1,76 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "functions: test",
+      "type": "shell",
+      "command": "npm test",
+      "options": {
+        "cwd": "${workspaceFolder}/functions"
+      },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "functions: typecheck",
+      "type": "shell",
+      "command": "npx tsc --noEmit",
+      "options": {
+        "cwd": "${workspaceFolder}/functions"
+      },
+      "problemMatcher": [
+        "$tsc"
+      ]
+    },
+    {
+      "label": "functions: rules test",
+      "type": "shell",
+      "command": "npm run test:rules",
+      "options": {
+        "cwd": "${workspaceFolder}/functions"
+      },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "app: analyze",
+      "type": "shell",
+      "command": "flutter analyze && flutter test",
+      "options": {
+        "cwd": "${workspaceFolder}/app"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "app: build web",
+      "type": "shell",
+      "command": "flutter build web",
+      "options": {
+        "cwd": "${workspaceFolder}/app"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "firebase: emulators",
+      "type": "shell",
+      "command": "npm run serve",
+      "options": {
+        "cwd": "${workspaceFolder}/functions"
+      },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "check: all",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "functions: typecheck",
+        "functions: test",
+        "functions: rules test",
+        "app: analyze",
+        "app: build web"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}
