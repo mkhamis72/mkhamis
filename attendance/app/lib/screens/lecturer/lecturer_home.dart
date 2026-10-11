@@ -3,13 +3,17 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import 'approvals_screen.dart';
 import 'attendance_list_screen.dart';
 import 'create_session_screen.dart';
 import 'live_session_screen.dart';
 import 'session_report_screen.dart';
 
 class LecturerHome extends StatelessWidget {
-  const LecturerHome({super.key});
+  const LecturerHome({super.key, this.isAdmin = false});
+
+  /// Admins also get the tab for approving new lecturer accounts.
+  final bool isAdmin;
 
   @override
   Widget build(BuildContext context) {
@@ -22,14 +26,18 @@ class LecturerHome extends StatelessWidget {
         .snapshots();
 
     return DefaultTabController(
-      length: 2,
+      length: isAdmin ? 3 : 2,
       child: Scaffold(
         appBar: AppBar(
           title: Text(FirebaseAuth.instance.currentUser?.displayName ?? 'Lecturer'),
           actions: [
             IconButton(tooltip: 'Sign out', icon: const Icon(Icons.logout), onPressed: () => FirebaseAuth.instance.signOut()),
           ],
-          bottom: const TabBar(tabs: [Tab(text: 'Sessions'), Tab(text: 'Attended students')]),
+          bottom: TabBar(tabs: [
+            const Tab(text: 'Sessions'),
+            const Tab(text: 'Attended students'),
+            if (isAdmin) const Tab(text: 'Approvals'),
+          ]),
         ),
         floatingActionButton: FloatingActionButton.extended(
           icon: const Icon(Icons.qr_code_2),
@@ -69,6 +77,7 @@ class LecturerHome extends StatelessWidget {
             },
           ),
           const AttendanceListScreen(),
+          if (isAdmin) const ApprovalsScreen(),
         ]),
       ),
     );

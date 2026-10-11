@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// Two roles (custom claim `role`): student, lecturer.
+// Two roles (custom claim `role`): student, lecturer. Lecturers need `approved`; admins are lecturers with `admin`.
 // Accounts, sessions, attendance and secrets are only written by Cloud Functions (Admin SDK bypasses rules).
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -14,7 +14,8 @@ service cloud.firestore {
     }
 
     match /staff/{staffId} {
-      allow read: if isLecturer() && isPerson(staffId);
+      // Own record, or any record for admins (to list pending lecturers).
+      allow read: if isLecturer() && (isPerson(staffId) || request.auth.token.admin == true);
       allow write: if false;
     }
 

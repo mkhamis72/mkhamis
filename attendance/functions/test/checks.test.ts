@@ -1,7 +1,7 @@
 import { evaluateScan, ScanContext } from "../src/checks";
 import { checkGeofence, distanceMeters } from "../src/geo";
 import { buildPayload, decodePayload, encodePayload, SLOT_SECONDS, verifyPayload } from "../src/qr";
-import { emailForId, validateRegistration } from "../src/roster";
+import { emailForId, parseAdminIds, validateRegistration } from "../src/roster";
 
 const SECRET = "test-secret";
 const NOW = 1_760_000_000_000;
@@ -156,5 +156,10 @@ describe("registration", () => {
     expect(validateRegistration("bad id", "Ali", "secret1")).toMatch(/ID/);
     expect(validateRegistration("S1001", "", "secret1")).toMatch(/name/);
     expect(validateRegistration("S1001", "Ali", "123")).toMatch(/Password/);
+  });
+
+  it("parses the admin staff ID list", () => {
+    expect([...parseAdminIds(" L001, l002;L003\n")]).toEqual(["l001", "l002", "l003"]);
+    expect(parseAdminIds("").size).toBe(0);
   });
 });

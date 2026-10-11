@@ -64,6 +64,10 @@ class Api {
   static Future<void> updateSession(String sessionId, String action, {int? minutes}) =>
       _call('updateSession', {'sessionId': sessionId, 'action': action, 'minutes': minutes});
 
+  // Admin (a lecturer with the admin flag)
+  static Future<void> approveLecturer(String staffId, bool approve) =>
+      _call('approveLecturer', {'staffId': staffId, 'approve': approve});
+
   static Future<void> removeAttendance(String sessionId, String studentId) =>
       _call('removeAttendance', {'sessionId': sessionId, 'studentId': studentId});
 }

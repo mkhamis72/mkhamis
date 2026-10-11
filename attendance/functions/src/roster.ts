@@ -12,3 +12,8 @@ export function validateRegistration(id: string, name: string, password: string)
   if (password.length < 6) return "Password must be at least 6 characters.";
   return null;
 }
+
+/** Parses the ADMIN_STAFF_IDS setting ("L001, L002") into lower-cased IDs. */
+export function parseAdminIds(raw: string): Set<string> {
+  return new Set(raw.split(/[\s,;]+/).map((s) => s.trim().toLowerCase()).filter(Boolean));
+}

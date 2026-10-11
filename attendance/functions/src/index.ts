@@ -1,11 +1,12 @@
 import { initializeApp } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
 import { FieldValue, getFirestore, Timestamp } from "firebase-admin/firestore";
+import { defineString } from "firebase-functions/params";
 import { CallableRequest, HttpsError, onCall } from "firebase-functions/v2/https";
 import { effectiveSettings, evaluateScan, REASON_MESSAGES, SessionDoc, SessionSettings } from "./checks";
 import { LocationFix } from "./geo";
 import { buildPayload, decodePayload, encodePayload, newSecret, QrMode, SLOT_SECONDS, slotAt } from "./qr";
-import { emailForId, Role, validateRegistration } from "./roster";
+import { emailForId, parseAdminIds, Role, validateRegistration } from "./roster";
 
 initializeApp();
 const db = getFirestore();
@@ -13,11 +14,26 @@ const db = getFirestore();
 /** Most recent subject/hall/location sets kept per lecturer for quick re-use. */
 const RECENT_PLACES = 10;
 
+/**
+ * Staff IDs (comma separated, set in functions/.env) that become admins when they register.
+ * Admins are lecturers who can also approve new lecturer accounts.
+ */
+const ADMIN_STAFF_IDS = defineString("ADMIN_STAFF_IDS", { default: "" });
+
 function requireRole(req: CallableRequest, role: Role): { uid: string; personId: string } {
   const token = req.auth?.token;
   if (!req.auth || !token) throw new HttpsError("unauthenticated", "Sign in first.");
   if (token.role !== role) throw new HttpsError("permission-denied", "Not allowed for your role.");
   return { uid: req.auth.uid, personId: String(token.personId ?? "") };
+}
+
+/** Lecturer calls need an approved account; `admin` calls also need the admin flag. */
+function requireLecturer(req: CallableRequest, opts: { admin?: boolean } = {}): { uid: string; personId: string } {
+  const who = requireRole(req, "lecturer");
+  const token = req.auth!.token;
+  if (token.approved !== true) throw new HttpsError("permission-denied", "Your lecturer account is waiting for admin approval.");
+  if (opts.admin && token.admin !== true) throw new HttpsError("permission-denied", "Only admins can do this.");
+  return who;
 }
 
 function requireDeviceId(raw: unknown): string {
@@ -48,12 +64,18 @@ function cleanSettings(raw: unknown, mode: QrMode): SessionSettings {
 // Registration (self-service, two roles)
 // ---------------------------------------------------------------------------
 
-async function createAccount(id: string, name: string, password: string, role: Role): Promise<string> {
+async function createAccount(
+  id: string,
+  name: string,
+  password: string,
+  role: Role,
+  extraClaims: Record<string, unknown> = {},
+): Promise<string> {
   const problem = validateRegistration(id, name, password);
   if (problem) throw new HttpsError("invalid-argument", problem);
   try {
     const user = await getAuth().createUser({ email: emailForId(id), password, displayName: name.trim() });
-    await getAuth().setCustomUserClaims(user.uid, { role, personId: id.trim() });
+    await getAuth().setCustomUserClaims(user.uid, { role, personId: id.trim(), ...extraClaims });
     return user.uid;
   } catch (e) {
     if ((e as { code?: string }).code === "auth/email-already-exists") {
@@ -79,12 +101,42 @@ export const registerStudent = onCall(async (req) => {
   return { ok: true };
 });
 
-/** Lecturer signs up and can create QR codes straight away. */
+/** Lecturer signs up; an admin must approve the account before it can create QR codes. */
 export const registerLecturer = onCall(async (req) => {
   const { staffId, name, password } = req.data ?? {};
   const id = String(staffId ?? "").trim();
-  const uid = await createAccount(id, String(name ?? ""), String(password ?? ""), "lecturer");
-  await db.collection("staff").doc(id).set({ name: String(name).trim(), authUid: uid, recentPlaces: [] });
+  const admin = parseAdminIds(ADMIN_STAFF_IDS.value()).has(id.toLowerCase());
+  const uid = await createAccount(id, String(name ?? ""), String(password ?? ""), "lecturer", {
+    approved: admin,
+    admin,
+  });
+  await db.collection("staff").doc(id).set({
+    name: String(name).trim(),
+    authUid: uid,
+    status: admin ? "approved" : "pending",
+    admin,
+    createdAt: Timestamp.now(),
+    recentPlaces: [],
+  });
+  return { ok: true, approved: admin };
+});
+
+/** Admin approves (claims updated) or rejects (account deleted) a pending lecturer. */
+export const approveLecturer = onCall(async (req) => {
+  const { personId: adminId } = requireLecturer(req, { admin: true });
+  const staffId = String(req.data?.staffId ?? "");
+  const ref = db.collection("staff").doc(staffId);
+  const snap = await ref.get();
+  if (!snap.exists) throw new HttpsError("not-found", "Lecturer not found.");
+  if (snap.get("status") !== "pending") throw new HttpsError("failed-precondition", "This account is not pending.");
+  const authUid = snap.get("authUid") as string;
+  if (req.data?.approve === true) {
+    await getAuth().setCustomUserClaims(authUid, { role: "lecturer", personId: staffId, approved: true, admin: false });
+    await ref.update({ status: "approved", approvedBy: adminId, approvedAt: Timestamp.now() });
+  } else {
+    await getAuth().deleteUser(authUid);
+    await ref.delete();
+  }
   return { ok: true };
 });
 
@@ -190,7 +242,7 @@ export const submitScan = onCall(async (req) => {
 // ---------------------------------------------------------------------------
 
 export const createSession = onCall(async (req) => {
-  const { uid, personId } = requireRole(req, "lecturer");
+  const { uid, personId } = requireLecturer(req);
   const d = req.data ?? {};
   const mode = d.mode as QrMode;
   if (mode !== "rotating" && mode !== "static") throw new HttpsError("invalid-argument", "QR type must be rotating or static.");
@@ -239,7 +291,7 @@ export const createSession = onCall(async (req) => {
 });
 
 export const getQrToken = onCall(async (req) => {
-  const { uid } = requireRole(req, "lecturer");
+  const { uid } = requireLecturer(req);
   const { session, ref } = await loadOwnedSession(req.data?.sessionId, uid);
   if (session.status !== "open") throw new HttpsError("failed-precondition", `Session is ${session.status}.`);
   const secret = (await db.collection("sessionSecrets").doc(ref.id).get()).get("secret");
@@ -254,7 +306,7 @@ export const getQrToken = onCall(async (req) => {
 });
 
 export const updateSession = onCall(async (req) => {
-  const { uid } = requireRole(req, "lecturer");
+  const { uid } = requireLecturer(req);
   const { ref, session } = await loadOwnedSession(req.data?.sessionId, uid);
   switch (req.data?.action) {
     case "pause":
@@ -284,7 +336,7 @@ export const updateSession = onCall(async (req) => {
 
 /** Lecturer removes an attendance entry (e.g. a flagged scan that turned out to be fake). */
 export const removeAttendance = onCall(async (req) => {
-  const { uid } = requireRole(req, "lecturer");
+  const { uid } = requireLecturer(req);
   const { ref } = await loadOwnedSession(req.data?.sessionId, uid);
   const attRef = db.collection("attendance").doc(`${ref.id}_${String(req.data?.studentId ?? "")}`);
   await db.runTransaction(async (tx) => {
