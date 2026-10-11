@@ -23,12 +23,25 @@ Run: `cd attendance/app && flutter analyze && flutter test`. Analyzer must repor
 ### Typecheck
 `cd attendance/functions && npx tsc --noEmit`.
 
-## 2. Emulator tests (v1.1, to add)
-Run `firebase emulators:start` and use `@firebase/rules-unit-testing`:
-- Clients cannot write any collection.
-- Student reads own `students` doc only. Lecturer reads own `staff`, `sessions` and own-session `attendance` only. Admin reads `staff` and `invites`.
-- `sessionSecrets` and `deviceUse` are never readable.
-- Callable integration: register → scan → duplicate scan; invite reserved once under concurrent registrations.
+### Firestore security rules (`functions/test-rules/firestore.rules.test.ts`)
+Run: `cd attendance/functions && npm run test:rules` (51 tests). Starts the Firestore emulator (needs Java 17+), loads `../firestore.rules`, seeds data with rules disabled, then tests as signed-out, student, lecturer and admin users with the real custom claims.
+
+| Area | Cases |
+|---|---|
+| Signed out | Cannot read any collection |
+| students | Own record only; lecturers/admins denied |
+| staff | Lecturer own only; admin any + pending query; students denied; `personId` alone is not enough without the lecturer role |
+| admins | Own record only |
+| invites | Admin read + list; lecturers/students denied |
+| sessions | Owner read + `lecturerUid` query; others denied; unfiltered query rejected |
+| attendance | Lecturer via record + per-session query (with `lecturerUid`); student own + history; others denied; query without `lecturerUid` rejected |
+| Server-only | `sessionSecrets`, `deviceUse` unreadable for every role |
+| Writes | create/update/delete denied on every collection for every role; a student can't forge attendance |
+
+Mutation check done when the suite was written: allowing client writes on `attendance` makes 4 tests fail.
+
+## 2. Callable integration on the emulators (to automate later)
+Verified manually with the Firebase JS SDK against `npm run serve`: admin list enforced, invite lock/reuse, lecturer claims, session + QR, scan accepted/idempotent, outside hall, device mismatch, mid-session phone switch, forged QR, attendee count. Candidate for a committed `test-integration/` suite.
 
 ## 3. Manual end-to-end (before each release)
 

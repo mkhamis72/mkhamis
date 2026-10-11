@@ -38,15 +38,24 @@ cp functions/.env.example functions/.env    # set ADMIN_STAFF_IDS=A001,...
 | App analyze / test | `cd app && flutter analyze && flutter test` | Task: **app: analyze** |
 | Run app in Chrome | `cd app && flutter run -d chrome` | Run ▶ **App (Chrome)** |
 | Run app on phone | `cd app && flutter run` | Run ▶ **App (device)** |
-| Local backend | `firebase emulators:start` | Task: **firebase: emulators** |
+| Firestore rules tests | `cd functions && npm run test:rules` | Task: **functions: rules test** |
+| Everything | | Task: **check: all** |
 
-To point the app at the emulators while developing, add this after `Firebase.initializeApp` in `main.dart`, behind a `const bool.fromEnvironment('USE_EMULATORS')` flag:
-```dart
-FirebaseAuth.instance.useAuthEmulator('localhost', 9099);
-FirebaseFirestore.instance.useFirestoreEmulator('localhost', 8080);
-FirebaseFunctions.instance.useFunctionsEmulator('localhost', 5001);
-```
-(Not yet in the code. See the v1.1 backlog in the [PRD](PRD.md#8-release-plan).)
+### Local development with the emulators (no Firebase project needed)
+The app has a build-time switch. With `USE_EMULATORS=true` it uses the demo project `demo-attendance` and connects to the local Auth (9099), Firestore (8080) and Functions (5001) emulators. An orange **EMULATOR** banner appears in the corner. `flutterfire configure` is not needed for this.
+
+1. Put the admin IDs for local testing in `functions/.env.local` (git-ignored, emulator only), e.g. `ADMIN_STAFF_IDS=A001`.
+2. Start the backend: `cd functions && npm run serve` (builds the functions, then `firebase emulators:start --project demo-attendance`), or Task **firebase: emulators**. The Emulator UI is at http://localhost:4000.
+3. Run the app:
+
+| Target | Command | VS Code |
+|---|---|---|
+| Chrome | `flutter run -d chrome --dart-define=USE_EMULATORS=true` | ▶ **App (Chrome, emulators)** |
+| Android emulator | `flutter run --dart-define=USE_EMULATORS=true --dart-define=EMULATOR_HOST=10.0.2.2` | ▶ **App (Android emulator, emulators)** |
+| Real phone on Wi-Fi | add `--dart-define=EMULATOR_HOST=<your PC's LAN IP>` and start the emulators with `host: 0.0.0.0` in `firebase.json` | |
+
+Android debug builds allow plain HTTP for this (`android/app/src/debug/AndroidManifest.xml`). Release builds don't.
+Switch code: `app/lib/services/emulators.dart`. Without the flag the app uses the real project from `firebase_options.dart`.
 
 ## 4. Deploy
 ```bash

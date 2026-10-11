@@ -82,6 +82,7 @@ Users sign in with their **ID + password**. Behind the scenes the ID is mapped t
 ## Tests
 
 ```bash
+cd functions && npm run test:rules   # Firestore rules on the emulator (Java 17+)
 cd functions && npm test     # QR signing/expiry, geofence, device binding + phone-switch rule, time window, toggles, static-mode rule, registration validation, contact details, admin ID list, invite codes
 cd app && flutter analyze && flutter test
 ```

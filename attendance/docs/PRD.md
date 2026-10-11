@@ -157,5 +157,5 @@ As an admin I see lecturers who registered without a code, with their name, Staf
 | Phase | Scope | Status |
 |---|---|---|
 | v1 | Everything above | ✅ Implemented, unit-tested, web build compiles |
-| v1.1 | Firestore rules emulator tests, password reset, Android/iOS store builds, CI | Planned |
+| v1.1 | Emulator switch for local dev ✅, Firestore rules tests ✅, password reset, Android/iOS store builds, CI | In progress |
 | v2 | Roster / absence report, timetable, notifications, multi-language (Arabic) | Idea |

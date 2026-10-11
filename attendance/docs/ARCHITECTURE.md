@@ -60,7 +60,8 @@ attendance/
 │   │   ├── qr.ts             # QR payload, HMAC signing, slot math, pure
 │   │   ├── geo.ts            # Haversine + geofence decision, pure
 │   │   └── roster.ts         # Registration/contact validation, invite codes, pure
-│   └── test/checks.test.ts   # Unit tests for all pure modules
+│   ├── test/checks.test.ts   # Unit tests for all pure modules
+│   └── test-rules/           # Firestore rules tests (emulator, npm run test:rules)
 └── app/
     ├── pubspec.yaml
     ├── lib/
@@ -69,6 +70,7 @@ attendance/
     │   ├── services/
     │   │   ├── api.dart                  # Wrappers for every callable
     │   │   ├── device.dart               # DeviceId + currentLocation()
+    │   │   ├── emulators.dart            # USE_EMULATORS switch, demo project options
     │   │   └── csv_export.dart           # Attendance → CSV → share sheet
     │   └── screens/
     │       ├── login_screen.dart         # Sign in / Register (Student, Lecturer, Admin)

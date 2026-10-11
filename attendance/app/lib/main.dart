@@ -8,10 +8,12 @@ import 'screens/lecturer/lecturer_home.dart';
 import 'screens/lecturer/pending_approval_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/student/student_home.dart';
+import 'services/emulators.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await Firebase.initializeApp(options: useEmulators ? demoOptions : DefaultFirebaseOptions.currentPlatform);
+  if (useEmulators) await connectToEmulators();
   runApp(const AttendanceApp());
 }
 
@@ -22,6 +24,18 @@ class AttendanceApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Attendance',
+      // A banner makes it obvious when the app is not using real data.
+      debugShowCheckedModeBanner: !useEmulators,
+      builder: useEmulators
+          ? (context, child) => Banner(
+                message: 'EMULATOR',
+                location: BannerLocation.topEnd,
+                color: Colors.deepOrange,
+                textDirection: TextDirection.ltr,
+                layoutDirection: TextDirection.ltr,
+                child: child!,
+              )
+          : null,
       theme: ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true),
       darkTheme: ThemeData(colorSchemeSeed: Colors.indigo, brightness: Brightness.dark, useMaterial3: true),
       home: const AuthGate(),

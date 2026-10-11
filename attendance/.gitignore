@@ -6,3 +6,4 @@ app/.flutter-plugins
 app/.flutter-plugins-dependencies
 .firebase/
 *-debug.log
+functions/.env.local

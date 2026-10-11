@@ -14,13 +14,15 @@ Roles via Auth custom claims: `role` = student | lecturer | admin, `personId`, `
 ```bash
 cd functions && npm test            # Jest unit tests: must pass
 cd functions && npx tsc --noEmit    # typecheck: must pass
+cd functions && npm run test:rules  # Firestore rules tests on the emulator (Java 17+): must pass
 cd app && flutter analyze           # must print "No issues found!"
 cd app && flutter test
 cd app && flutter build web         # compile check for every screen
-cd app && flutter run -d chrome     # run locally (needs firebase_options.dart)
-firebase emulators:start            # local Auth/Firestore/Functions
+cd functions && npm run serve       # local Auth/Firestore/Functions emulators (project demo-attendance)
+cd app && flutter run -d chrome --dart-define=USE_EMULATORS=true   # app against the emulators
+cd app && flutter run -d chrome     # app against the real project (needs firebase_options.dart)
 ```
-Before every commit: all five checks above (except `run`) must pass.
+Before every commit: tests, typecheck, rules tests, analyze, app test and web build must pass (VS Code task **check: all**).
 
 ## Architecture rules (do not break)
 1. **Clients never write Firestore.** Every write is a callable in `functions/src/index.ts`, wrapped in `app/lib/services/api.dart`. `firestore.rules` denies all client writes.
@@ -44,12 +46,13 @@ Before every commit: all five checks above (except `run`) must pass.
 1. Update `docs/PRD.md` (story + acceptance criteria) if it's new behaviour.
 2. Pure logic + tests in `functions/src/*.ts` / `functions/test/`.
 3. Callable in `index.ts` (auth check, validation) → document it in `docs/API.md`.
-4. Data changes → `docs/DATA_MODEL.md`, `firestore.rules`, `firestore.indexes.json`.
+4. Data changes → `docs/DATA_MODEL.md`, `firestore.rules` (+ cases in `functions/test-rules/`), `firestore.indexes.json`.
 5. Wrapper in `api.dart` → screen(s) → `docs/UI_SPEC.md`.
 6. Run all checks; add manual cases to `docs/TEST_PLAN.md` if needed.
 
 ## Gotchas
-- `app/lib/firebase_options.dart` is a placeholder that throws until `flutterfire configure` is run.
+- `app/lib/firebase_options.dart` is a placeholder that throws until `flutterfire configure` is run. With `--dart-define=USE_EMULATORS=true` it isn't used (demo project options in `services/emulators.dart`).
+- Emulator-only admin IDs go in `functions/.env.local` (git-ignored).
 - Approval changes claims. The client must refresh its ID token (`getIdToken(true)`) to see them; `AuthGate` re-routes on `idTokenChanges()`.
 - `ADMIN_STAFF_IDS` (`functions/.env`) only applies at registration.
 - The Flutter SDK may warn when run as root in containers. That's harmless.
