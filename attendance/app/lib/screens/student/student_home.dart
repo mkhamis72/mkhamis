@@ -16,24 +16,50 @@ class StudentHome extends StatefulWidget {
 }
 
 class _StudentHomeState extends State<StudentHome> {
-  String? _deviceWarning;
+  /// False when this account is bound to a different phone.
+  bool _thisPhone = true;
+  bool _rebinding = false;
 
   @override
   void initState() {
     super.initState();
-    _registerDevice();
+    _checkDevice();
   }
 
-  /// Binds this account to this phone on first login, and warns if it is bound elsewhere.
-  Future<void> _registerDevice() async {
+  Future<void> _checkDevice() async {
     try {
-      final res = await Api.registerDevice(await DeviceId.get());
-      if (mounted && res['matches'] == false) {
-        setState(() => _deviceWarning =
-            'Your account is registered to another phone. Scans from this phone will be rejected. Ask the admin to reset it.');
-      }
+      final res = await Api.deviceStatus(await DeviceId.get());
+      if (mounted) setState(() => _thisPhone = res['matches'] == true);
     } catch (_) {
       // Offline: the server checks the device again on every scan.
+    }
+  }
+
+  /// Moves the account to this phone. Works from the next class, not one that already started.
+  Future<void> _useThisPhone() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Use this phone?'),
+        content: const Text('Your old phone stops working for attendance.\n\n'
+            'This phone can sign classes that start after now. A class that has already started cannot be signed with it.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Use this phone')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() => _rebinding = true);
+    try {
+      await Api.rebindDevice(await DeviceId.get());
+      if (!mounted) return;
+      setState(() => _thisPhone = true);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('This phone is now your attendance phone.')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorText(e))));
+    } finally {
+      if (mounted) setState(() => _rebinding = false);
     }
   }
 
@@ -55,11 +81,13 @@ class _StudentHomeState extends State<StudentHome> {
         ],
       ),
       body: Column(children: [
-        if (_deviceWarning != null)
+        if (!_thisPhone)
           MaterialBanner(
-            content: Text(_deviceWarning!),
+            content: const Text('Your account is set to another phone. Scans from this phone will be rejected.'),
             leading: const Icon(Icons.phonelink_lock),
-            actions: [TextButton(onPressed: () => setState(() => _deviceWarning = null), child: const Text('OK'))],
+            actions: [
+              TextButton(onPressed: _rebinding ? null : _useThisPhone, child: const Text('Use this phone')),
+            ],
           ),
         Padding(
           padding: const EdgeInsets.all(24),

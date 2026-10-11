@@ -1,7 +1,7 @@
 import { evaluateScan, ScanContext } from "../src/checks";
 import { checkGeofence, distanceMeters } from "../src/geo";
 import { buildPayload, decodePayload, encodePayload, SLOT_SECONDS, verifyPayload } from "../src/qr";
-import { parseRosterRows } from "../src/roster";
+import { emailForId, validateRegistration } from "../src/roster";
 
 const SECRET = "test-secret";
 const NOW = 1_760_000_000_000;
@@ -15,16 +15,13 @@ function ctx(overrides: Partial<ScanContext> = {}, mode: "rotating" | "static" =
     payload: buildPayload(mode, "s1", "Math", "Hall A", SECRET, NOW),
     secret: SECRET,
     session: {
-      courseId: "c1",
-      hallId: "h1",
       mode,
       status: "open",
       startsAtMs: NOW - 60_000,
       windowMinutes: 15,
       settings: { geofence: true, deviceBinding: true, timeWindow: true },
     },
-    enrolled: true,
-    student: { studentId: "st1", boundDeviceId: "device-AAAA" },
+    student: { studentId: "st1", boundDeviceId: "device-AAAA", rebindAtMs: null },
     hall: HALL,
     deviceId: "device-AAAA",
     location: INSIDE,
@@ -89,10 +86,6 @@ describe("evaluateScan", () => {
     expect(evaluateScan(ctx())).toEqual({ ok: true, flags: [], distance: expect.any(Number), bindDevice: false });
   });
 
-  it("rejects students not enrolled", () => {
-    expect(reason(ctx({ enrolled: false }))).toBe("not_enrolled");
-  });
-
   it("rejects paused / ended sessions", () => {
     const c = ctx();
     c.session.status = "paused";
@@ -122,6 +115,22 @@ describe("evaluateScan", () => {
     expect(reason(off)).toBe("ok");
   });
 
+  it("phone switched after the session started can't sign that session", () => {
+    const during = ctx({ student: { studentId: "st1", boundDeviceId: "device-AAAA", rebindAtMs: NOW - 30_000 } });
+    expect(reason(during)).toBe("device_changed_during_session");
+  });
+
+  it("phone switched before the session started works", () => {
+    const before = ctx({ student: { studentId: "st1", boundDeviceId: "device-AAAA", rebindAtMs: NOW - 3_600_000 } });
+    expect(reason(before)).toBe("ok");
+  });
+
+  it("phone-switch rule is skipped when device binding is off", () => {
+    const c = ctx({ student: { studentId: "st1", boundDeviceId: "device-AAAA", rebindAtMs: NOW - 30_000 } });
+    c.session.settings.deviceBinding = false;
+    expect(reason(c)).toBe("ok");
+  });
+
   it("geofence: rejects far away when on, ignored when off (rotating)", () => {
     expect(reason(ctx({ location: FAR }))).toBe("outside_hall");
     const off = ctx({ location: undefined });
@@ -137,13 +146,15 @@ describe("evaluateScan", () => {
   });
 });
 
-describe("roster CSV", () => {
-  it("parses rows, skips header, reports errors", () => {
-    const { rows, errors } = parseRosterRows(
-      "id,name,role,password\nS100,Ali Hassan,student,secret1\nL1,Dr. Sara,lecturer,secret2\nS100,Dup,student,x123456\n bad id ,X\nS200,,student",
-    );
-    expect(rows.map((r) => r.id)).toEqual(["S100", "L1"]);
-    expect(rows[1].role).toBe("lecturer");
-    expect(errors).toHaveLength(3);
+describe("registration", () => {
+  it("maps IDs to auth emails", () => {
+    expect(emailForId(" S1001 ")).toBe("s1001@attendance.local");
+  });
+
+  it("validates ID, name and password", () => {
+    expect(validateRegistration("S1001", "Ali Hassan", "secret1")).toBeNull();
+    expect(validateRegistration("bad id", "Ali", "secret1")).toMatch(/ID/);
+    expect(validateRegistration("S1001", "", "secret1")).toMatch(/name/);
+    expect(validateRegistration("S1001", "Ali", "123")).toMatch(/Password/);
   });
 });

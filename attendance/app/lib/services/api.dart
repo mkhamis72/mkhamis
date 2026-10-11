@@ -10,9 +10,22 @@ class Api {
     return Map<String, dynamic>.from(res.data);
   }
 
+  // Registration
+  static Future<void> registerStudent({
+    required String studentId,
+    required String name,
+    required String password,
+    required String deviceId,
+  }) =>
+      _call('registerStudent', {'studentId': studentId, 'name': name, 'password': password, 'deviceId': deviceId});
+
+  static Future<void> registerLecturer({required String staffId, required String name, required String password}) =>
+      _call('registerLecturer', {'staffId': staffId, 'name': name, 'password': password});
+
   // Student
-  static Future<Map<String, dynamic>> registerDevice(String deviceId) =>
-      _call('registerDevice', {'deviceId': deviceId});
+  static Future<Map<String, dynamic>> deviceStatus(String deviceId) => _call('deviceStatus', {'deviceId': deviceId});
+
+  static Future<void> rebindDevice(String deviceId) => _call('rebindDevice', {'deviceId': deviceId});
 
   static Future<Map<String, dynamic>> submitScan({
     required String qr,
@@ -23,15 +36,21 @@ class Api {
 
   // Lecturer
   static Future<String> createSession({
-    required String courseId,
-    required String hallId,
+    required String subject,
+    required String hallName,
+    required double lat,
+    required double lng,
+    required int radiusMeters,
     required String mode, // 'rotating' | 'static'
     required Map<String, bool> settings,
     required int windowMinutes,
   }) async {
     final res = await _call('createSession', {
-      'courseId': courseId,
-      'hallId': hallId,
+      'subject': subject,
+      'hallName': hallName,
+      'lat': lat,
+      'lng': lng,
+      'radiusMeters': radiusMeters,
       'mode': mode,
       'settings': settings,
       'windowMinutes': windowMinutes,
@@ -45,13 +64,8 @@ class Api {
   static Future<void> updateSession(String sessionId, String action, {int? minutes}) =>
       _call('updateSession', {'sessionId': sessionId, 'action': action, 'minutes': minutes});
 
-  static Future<void> overrideAttendance(String sessionId, String studentId, bool present) =>
-      _call('overrideAttendance', {'sessionId': sessionId, 'studentId': studentId, 'present': present});
-
-  // Admin
-  static Future<Map<String, dynamic>> importRoster(String csv) => _call('importRoster', {'csv': csv});
-
-  static Future<void> resetDevice(String studentId) => _call('resetDevice', {'studentId': studentId});
+  static Future<void> removeAttendance(String sessionId, String studentId) =>
+      _call('removeAttendance', {'sessionId': sessionId, 'studentId': studentId});
 }
 
 /// Readable text for a failed callable.

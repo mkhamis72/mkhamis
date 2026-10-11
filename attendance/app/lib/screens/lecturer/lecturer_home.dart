@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import 'attendance_list_screen.dart';
 import 'create_session_screen.dart';
 import 'live_session_screen.dart';
 import 'session_report_screen.dart';
@@ -13,13 +14,11 @@ class LecturerHome extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final uid = FirebaseAuth.instance.currentUser!.uid;
-    final db = FirebaseFirestore.instance;
-    final courses = db.collection('courses').where('lecturerUid', isEqualTo: uid).snapshots();
-    final sessions = db
+    final sessions = FirebaseFirestore.instance
         .collection('sessions')
         .where('lecturerUid', isEqualTo: uid)
         .orderBy('startsAt', descending: true)
-        .limit(30)
+        .limit(50)
         .snapshots();
 
     return DefaultTabController(
@@ -30,46 +29,24 @@ class LecturerHome extends StatelessWidget {
           actions: [
             IconButton(tooltip: 'Sign out', icon: const Icon(Icons.logout), onPressed: () => FirebaseAuth.instance.signOut()),
           ],
-          bottom: const TabBar(tabs: [Tab(text: 'My courses'), Tab(text: 'Sessions')]),
+          bottom: const TabBar(tabs: [Tab(text: 'Sessions'), Tab(text: 'Attended students')]),
+        ),
+        floatingActionButton: FloatingActionButton.extended(
+          icon: const Icon(Icons.qr_code_2),
+          label: const Text('New QR'),
+          onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CreateSessionScreen())),
         ),
         body: TabBarView(children: [
-          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: courses,
-            builder: (context, snap) {
-              if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-              final docs = snap.data!.docs;
-              if (docs.isEmpty) return const Center(child: Text('No courses assigned. Ask the admin.'));
-              return ListView(
-                children: [
-                  for (final c in docs)
-                    Card(
-                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                      child: ListTile(
-                        title: Text('${c['subject']}'),
-                        subtitle: Text('${(c.data()['studentIds'] as List?)?.length ?? 0} students'),
-                        trailing: FilledButton.icon(
-                          icon: const Icon(Icons.qr_code_2),
-                          label: const Text('Create QR'),
-                          onPressed: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => CreateSessionScreen(courseId: c.id, course: c.data())),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              );
-            },
-          ),
           StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
             stream: sessions,
             builder: (context, snap) {
               if (snap.hasError) return Center(child: Text('${snap.error}'));
               if (!snap.hasData) return const Center(child: CircularProgressIndicator());
               final docs = snap.data!.docs;
-              if (docs.isEmpty) return const Center(child: Text('No sessions yet.'));
+              if (docs.isEmpty) return const Center(child: Text('No sessions yet. Tap "New QR" to start one.'));
               final fmt = DateFormat('EEE d MMM, HH:mm');
               return ListView(
+                padding: const EdgeInsets.only(bottom: 88),
                 children: [
                   for (final s in docs)
                     ListTile(
@@ -91,6 +68,7 @@ class LecturerHome extends StatelessWidget {
               );
             },
           ),
+          const AttendanceListScreen(),
         ]),
       ),
     );

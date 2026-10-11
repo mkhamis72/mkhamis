@@ -1,14 +1,12 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:printing/printing.dart';
 
 import '../../services/api.dart';
+import '../../services/csv_export.dart';
 
-/// Present / absent list for one session, flagged scans, manual override and CSV export.
+/// Attended students for one session: flagged scans, remove an entry, CSV export.
 class SessionReportScreen extends StatelessWidget {
   const SessionReportScreen({super.key, required this.sessionId});
   final String sessionId;
@@ -16,26 +14,25 @@ class SessionReportScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final db = FirebaseFirestore.instance;
+    // Filtering by lecturerUid as well is required by the security rules.
+    final attendance = db
+        .collection('attendance')
+        .where('sessionId', isEqualTo: sessionId)
+        .where('lecturerUid', isEqualTo: FirebaseAuth.instance.currentUser!.uid)
+        .snapshots();
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       stream: db.collection('sessions').doc(sessionId).snapshots(),
       builder: (context, sessionSnap) {
         final s = sessionSnap.data?.data();
         if (s == null) return const Scaffold(body: Center(child: CircularProgressIndicator()));
-        return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          future: db.collection('courses').doc(s['courseId'] as String).get(),
-          builder: (context, courseSnap) {
-            final roster = List<String>.from(courseSnap.data?.data()?['studentIds'] ?? const []);
-            return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: db.collection('attendance').where('sessionId', isEqualTo: sessionId).orderBy('at').snapshots(),
-              builder: (context, attSnap) {
-                if (!attSnap.hasData || !courseSnap.hasData) {
-                  return const Scaffold(body: Center(child: CircularProgressIndicator()));
-                }
-                final present = {for (final d in attSnap.data!.docs) d['studentId'] as String: d.data()};
-                final absent = roster.where((id) => !present.containsKey(id)).toList()..sort();
-                return _ReportView(sessionId: sessionId, session: s, present: present, absent: absent);
-              },
-            );
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: attendance,
+          builder: (context, attSnap) {
+            if (attSnap.hasError) return Scaffold(body: Center(child: Text('${attSnap.error}')));
+            if (!attSnap.hasData) return const Scaffold(body: Center(child: CircularProgressIndicator()));
+            final records = attSnap.data!.docs.map((d) => d.data()).toList()
+              ..sort((a, b) => (a['at'] as Timestamp).compareTo(b['at'] as Timestamp));
+            return _ReportView(sessionId: sessionId, session: s, records: records);
           },
         );
       },
@@ -44,32 +41,26 @@ class SessionReportScreen extends StatelessWidget {
 }
 
 class _ReportView extends StatelessWidget {
-  const _ReportView({required this.sessionId, required this.session, required this.present, required this.absent});
+  const _ReportView({required this.sessionId, required this.session, required this.records});
   final String sessionId;
   final Map<String, dynamic> session;
-  final Map<String, Map<String, dynamic>> present;
-  final List<String> absent;
+  final List<Map<String, dynamic>> records;
 
-  Future<void> _export() async {
-    final fmt = DateFormat('yyyy-MM-dd HH:mm:ss');
-    final lines = ['student_id,name,status,time,flags,manual'];
-    present.forEach((id, d) {
-      final at = (d['at'] as Timestamp?)?.toDate();
-      final flags = (d['flags'] as List? ?? const []).join(' ');
-      lines.add('$id,"${d['studentName']}",present,${at == null ? '' : fmt.format(at)},$flags,${d['manual'] == true}');
-    });
-    for (final id in absent) {
-      lines.add('$id,,absent,,,');
-    }
-    await Printing.sharePdf(
-      bytes: Uint8List.fromList(utf8.encode(lines.join('\n'))),
-      filename: 'attendance-${session['subject']}-$sessionId.csv',
+  Future<void> _remove(BuildContext context, Map<String, dynamic> d) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Remove attendance?'),
+        content: Text('${d['studentName']} (${d['studentId']}) will be marked as not attended.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Remove')),
+        ],
+      ),
     );
-  }
-
-  Future<void> _override(BuildContext context, String studentId, bool markPresent) async {
+    if (ok != true) return;
     try {
-      await Api.overrideAttendance(sessionId, studentId, markPresent);
+      await Api.removeAttendance(sessionId, d['studentId'] as String);
     } catch (e) {
       if (context.mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(errorText(e))));
     }
@@ -78,50 +69,41 @@ class _ReportView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fmt = DateFormat('HH:mm:ss');
-    final flagged = present.entries.where((e) => (e.value['flags'] as List? ?? const []).isNotEmpty).length;
+    final flagged = records.where((d) => (d['flags'] as List? ?? const []).isNotEmpty).length;
     return Scaffold(
       appBar: AppBar(
         title: Text('${session['subject']} · ${session['hallName']}'),
-        actions: [IconButton(tooltip: 'Export CSV', icon: const Icon(Icons.download), onPressed: _export)],
+        actions: [
+          IconButton(
+            tooltip: 'Export CSV',
+            icon: const Icon(Icons.download),
+            onPressed: () => shareAttendanceCsv(records, 'attendance-${session['subject']}-$sessionId.csv'),
+          ),
+        ],
       ),
       body: ListView(children: [
         ListTile(
-          title: Text('${present.length} present · ${absent.length} absent'),
+          title: Text('${records.length} attended'),
           subtitle: flagged > 0 ? Text('$flagged flagged for review (scanned near the hall edge)') : null,
         ),
         const Divider(),
-        for (final e in present.entries)
+        for (final d in records)
           ListTile(
-            leading: Icon(
-              (e.value['flags'] as List? ?? const []).isNotEmpty ? Icons.flag : Icons.check_circle,
-              color: (e.value['flags'] as List? ?? const []).isNotEmpty ? Colors.orange : Colors.green,
-            ),
-            title: Text('${e.value['studentName']} (${e.key})'),
+            leading: (d['flags'] as List? ?? const []).isNotEmpty
+                ? const Icon(Icons.flag, color: Colors.orange)
+                : const Icon(Icons.check_circle, color: Colors.green),
+            title: Text('${d['studentName']} (${d['studentId']})'),
             subtitle: Text([
-              if (e.value['at'] != null) fmt.format((e.value['at'] as Timestamp).toDate()),
-              if (e.value['distanceMeters'] != null) '${(e.value['distanceMeters'] as num).round()} m from hall',
-              if (e.value['manual'] == true) 'marked by lecturer',
+              fmt.format((d['at'] as Timestamp).toDate()),
+              if (d['distanceMeters'] != null) '${(d['distanceMeters'] as num).round()} m from hall',
             ].join(' · ')),
             trailing: IconButton(
-              tooltip: 'Mark absent',
+              tooltip: 'Remove',
               icon: const Icon(Icons.person_remove),
-              onPressed: () => _override(context, e.key, false),
-            ),
-          ),
-        if (absent.isNotEmpty) const Divider(),
-        for (final id in absent)
-          ListTile(
-            leading: const Icon(Icons.radio_button_unchecked),
-            title: Text(id),
-            subtitle: const Text('Absent'),
-            trailing: IconButton(
-              tooltip: 'Mark present',
-              icon: const Icon(Icons.person_add),
-              onPressed: () => _override(context, id, true),
+              onPressed: () => _remove(context, d),
             ),
           ),
       ]),
     );
   }
 }
-

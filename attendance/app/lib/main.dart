@@ -3,7 +3,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import 'firebase_options.dart';
-import 'screens/admin/admin_home.dart';
 import 'screens/lecturer/lecturer_home.dart';
 import 'screens/login_screen.dart';
 import 'screens/student/student_home.dart';
@@ -28,7 +27,7 @@ class AttendanceApp extends StatelessWidget {
   }
 }
 
-/// Sends the signed-in user to the home screen for their role (set as a custom claim by the admin import).
+/// Sends the signed-in user to the home screen for their role (custom claim set at registration).
 class AuthGate extends StatelessWidget {
   const AuthGate({super.key});
 
@@ -55,8 +54,6 @@ class AuthGate extends StatelessWidget {
                 return StudentHome(studentId: personId);
               case 'lecturer':
                 return const LecturerHome();
-              case 'admin':
-                return const AdminHome();
               default:
                 return const _NoRoleScreen();
             }
@@ -75,7 +72,7 @@ class _NoRoleScreen extends StatelessWidget {
     return Scaffold(
       body: Center(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Text('Your account has no role yet. Contact the administrator.'),
+          const Text('Your account is not set up correctly. Register again or contact support.'),
           const SizedBox(height: 16),
           FilledButton(onPressed: () => FirebaseAuth.instance.signOut(), child: const Text('Sign out')),
         ]),

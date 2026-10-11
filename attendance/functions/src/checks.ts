@@ -8,8 +8,6 @@ export interface SessionSettings {
 }
 
 export interface SessionDoc {
-  courseId: string;
-  hallId: string;
   mode: QrMode;
   status: "open" | "paused" | "ended";
   startsAtMs: number;
@@ -20,6 +18,8 @@ export interface SessionDoc {
 export interface StudentDoc {
   studentId: string;
   boundDeviceId?: string | null;
+  /** When the student last moved their account to a new phone (null if never). */
+  rebindAtMs?: number | null;
 }
 
 export interface ScanContext {
@@ -27,7 +27,6 @@ export interface ScanContext {
   payload: QrPayload;
   secret: string;
   session: SessionDoc;
-  enrolled: boolean;
   student: StudentDoc;
   hall: GeoPoint & { radiusMeters: number };
   deviceId: string;
@@ -37,13 +36,13 @@ export interface ScanContext {
 }
 
 export type RejectReason =
-  | "not_enrolled"
   | "session_closed"
   | "outside_time_window"
   | "bad_signature"
   | "expired_qr"
   | "wrong_mode"
   | "device_mismatch"
+  | "device_changed_during_session"
   | "device_already_used"
   | "location_missing"
   | "location_mocked"
@@ -64,8 +63,6 @@ export function evaluateScan(ctx: ScanContext): ScanDecision {
   const { session } = ctx;
   const settings = effectiveSettings(session.mode, session.settings);
 
-  if (!ctx.enrolled) return { ok: false, reason: "not_enrolled" };
-
   if (session.status !== "open") return { ok: false, reason: "session_closed" };
   if (settings.timeWindow) {
     const endMs = session.startsAtMs + session.windowMinutes * 60_000;
@@ -82,6 +79,9 @@ export function evaluateScan(ctx: ScanContext): ScanDecision {
     const bound = ctx.student.boundDeviceId;
     if (bound && bound !== ctx.deviceId) return { ok: false, reason: "device_mismatch" };
     if (!bound) bindDevice = true;
+    // A phone switched after class started can't sign this class (stops resetting to sign a friend in).
+    const rebind = ctx.student.rebindAtMs;
+    if (rebind && rebind > session.startsAtMs) return { ok: false, reason: "device_changed_during_session" };
     if (ctx.deviceUsedBy && ctx.deviceUsedBy !== ctx.student.studentId) {
       return { ok: false, reason: "device_already_used" };
     }
@@ -100,13 +100,13 @@ export function evaluateScan(ctx: ScanContext): ScanDecision {
 }
 
 export const REASON_MESSAGES: Record<RejectReason, string> = {
-  not_enrolled: "You are not enrolled in this course.",
   session_closed: "This attendance session is not open.",
   outside_time_window: "The attendance time window has closed.",
   bad_signature: "Invalid QR code.",
   expired_qr: "This QR code has expired. Scan the live code on the screen.",
   wrong_mode: "Invalid QR code.",
-  device_mismatch: "This account is registered to another phone. Ask the admin to reset it.",
+  device_mismatch: "This account is registered to another phone. Tap \"Use this phone\" on the home screen.",
+  device_changed_during_session: "You switched phones after this class started. The new phone works from the next class.",
   device_already_used: "This phone already signed in another student for this class.",
   location_missing: "Location is required. Turn on GPS and allow location access.",
   location_mocked: "Fake location detected.",
