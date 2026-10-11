@@ -54,14 +54,14 @@ export function inviteProblem(invite: Invite | undefined, staffId: string, nowMs
   return null;
 }
 
-export interface LecturerDetails {
+export interface ContactDetails {
   university: string;
   mobile: string;
   email: string;
 }
 
-/** Trims the lecturer's contact details; returns them with an error message (null when valid). */
-export function cleanLecturerDetails(raw: Record<string, unknown>): { details: LecturerDetails; problem: string | null } {
+/** Trims a student's or lecturer's contact details; returns them with an error message (null when valid). */
+export function cleanContactDetails(raw: Record<string, unknown>): { details: ContactDetails; problem: string | null } {
   const details = {
     university: String(raw.university ?? "").trim(),
     mobile: String(raw.mobile ?? "").trim(),

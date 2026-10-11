@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../services/api.dart';
 import '../../services/device.dart';
+import '../profile_screen.dart';
 import 'scan_screen.dart';
 
 class StudentHome extends StatefulWidget {
@@ -77,6 +78,11 @@ class _StudentHomeState extends State<StudentHome> {
       appBar: AppBar(
         title: Text(user.displayName ?? widget.studentId),
         actions: [
+          IconButton(
+            tooltip: 'My details',
+            icon: const Icon(Icons.account_circle),
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen(student: true))),
+          ),
           IconButton(tooltip: 'Sign out', icon: const Icon(Icons.logout), onPressed: () => FirebaseAuth.instance.signOut()),
         ],
       ),

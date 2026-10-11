@@ -40,6 +40,9 @@ class _LoginScreenState extends State<LoginScreen> {
             studentId: _id.text.trim(),
             name: _name.text.trim(),
             password: _password.text,
+            university: _university.text.trim(),
+            mobile: _mobile.text.trim(),
+            email: _email.text.trim(),
             deviceId: await DeviceId.get(),
           );
         } else if (_role == 'lecturer') {
@@ -122,7 +125,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   textInputAction: TextInputAction.next,
                 ),
               ],
-              if (_register && _role == 'lecturer') ...[
+              if (_register && _role != 'admin') ...[
                 const SizedBox(height: 12),
                 TextField(
                   controller: _university,

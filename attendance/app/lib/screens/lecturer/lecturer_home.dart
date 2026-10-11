@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 import 'attendance_list_screen.dart';
 import 'create_session_screen.dart';
 import 'live_session_screen.dart';
-import 'profile_screen.dart';
+import '../profile_screen.dart';
 import 'session_report_screen.dart';
 
 class LecturerHome extends StatelessWidget {
@@ -31,7 +31,7 @@ class LecturerHome extends StatelessWidget {
             IconButton(
               tooltip: 'My details',
               icon: const Icon(Icons.account_circle),
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen(student: false))),
             ),
             IconButton(tooltip: 'Sign out', icon: const Icon(Icons.logout), onPressed: () => FirebaseAuth.instance.signOut()),
           ],

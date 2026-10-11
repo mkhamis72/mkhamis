@@ -2,7 +2,7 @@ import { evaluateScan, ScanContext } from "../src/checks";
 import { checkGeofence, distanceMeters } from "../src/geo";
 import { buildPayload, decodePayload, encodePayload, SLOT_SECONDS, verifyPayload } from "../src/qr";
 import {
-  cleanLecturerDetails,
+  cleanContactDetails,
   emailForId,
   inviteProblem,
   newInviteCode,
@@ -198,20 +198,20 @@ describe("invite codes", () => {
   });
 });
 
-describe("lecturer details", () => {
+describe("contact details", () => {
   const ok = { university: " Cairo University ", mobile: "+20 100 123 4567", email: " Sara@Uni.EDU.eg " };
 
   it("trims and accepts valid details", () => {
-    expect(cleanLecturerDetails(ok)).toEqual({
+    expect(cleanContactDetails(ok)).toEqual({
       details: { university: "Cairo University", mobile: "+20 100 123 4567", email: "sara@uni.edu.eg" },
       problem: null,
     });
   });
 
   it("rejects missing university, bad mobile and bad email", () => {
-    expect(cleanLecturerDetails({ ...ok, university: "" }).problem).toMatch(/university/);
-    expect(cleanLecturerDetails({ ...ok, mobile: "12ab" }).problem).toMatch(/mobile/);
-    expect(cleanLecturerDetails({ ...ok, mobile: "+--- ---" }).problem).toMatch(/mobile/);
-    expect(cleanLecturerDetails({ ...ok, email: "sara@uni" }).problem).toMatch(/email/);
+    expect(cleanContactDetails({ ...ok, university: "" }).problem).toMatch(/university/);
+    expect(cleanContactDetails({ ...ok, mobile: "12ab" }).problem).toMatch(/mobile/);
+    expect(cleanContactDetails({ ...ok, mobile: "+--- ---" }).problem).toMatch(/mobile/);
+    expect(cleanContactDetails({ ...ok, email: "sara@uni" }).problem).toMatch(/email/);
   });
 });

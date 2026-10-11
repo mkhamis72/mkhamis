@@ -15,9 +15,20 @@ class Api {
     required String studentId,
     required String name,
     required String password,
+    required String university,
+    required String mobile,
+    required String email,
     required String deviceId,
   }) =>
-      _call('registerStudent', {'studentId': studentId, 'name': name, 'password': password, 'deviceId': deviceId});
+      _call('registerStudent', {
+        'studentId': studentId,
+        'name': name,
+        'password': password,
+        'university': university,
+        'mobile': mobile,
+        'email': email,
+        'deviceId': deviceId,
+      });
 
   /// Returns true when a valid invite code approved the account straight away.
   static Future<bool> registerLecturer({
@@ -46,6 +57,17 @@ class Api {
 
   // Student
   static Future<Map<String, dynamic>> deviceStatus(String deviceId) => _call('deviceStatus', {'deviceId': deviceId});
+
+  /// Saves the signed-in student's or lecturer's name and contact details.
+  static Future<void> updateProfile({
+    required bool student,
+    required String name,
+    required String university,
+    required String mobile,
+    required String email,
+  }) =>
+      _call(student ? 'updateStudentProfile' : 'updateLecturerProfile',
+          {'name': name, 'university': university, 'mobile': mobile, 'email': email});
 
   static Future<void> rebindDevice(String deviceId) => _call('rebindDevice', {'deviceId': deviceId});
 
@@ -85,14 +107,6 @@ class Api {
   /// action: pause | resume | end | regenerate | extend
   static Future<void> updateSession(String sessionId, String action, {int? minutes}) =>
       _call('updateSession', {'sessionId': sessionId, 'action': action, 'minutes': minutes});
-
-  static Future<void> updateLecturerProfile({
-    required String name,
-    required String university,
-    required String mobile,
-    required String email,
-  }) =>
-      _call('updateLecturerProfile', {'name': name, 'university': university, 'mobile': mobile, 'email': email});
 
   static Future<void> removeAttendance(String sessionId, String studentId) =>
       _call('removeAttendance', {'sessionId': sessionId, 'studentId': studentId});

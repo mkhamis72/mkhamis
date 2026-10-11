@@ -5,8 +5,9 @@ Students sign attendance by scanning a QR code in the lecture hall. The design b
 There are **three roles**, and everyone signs up in the app themselves: **Student**, **Lecturer** and **Admin**. Lecturer accounts must be accepted by an admin, either with an **invite code** the admin sends (instant) or by **manual approval**.
 
 **Student**
-- Registers once: Student ID, full name, password. Each ID can be registered only once, and the registering phone becomes the student's attendance phone.
+- Registers once: Student ID, **full name, university, mobile, email**, password. Each ID can be registered only once, and the registering phone becomes the student's attendance phone.
 - Scans the QR → ✓ recorded, or the reason it was rejected. Sees own attendance history.
+- **My details** (person icon): edit name, university, mobile and email.
 - New or lost phone: sign in on the new phone and tap **Use this phone**. The new phone works **from the next class**. It can't sign a class that had already started when the switch was made.
 
 **Lecturer**
@@ -65,7 +66,7 @@ Users sign in with their **ID + password**. Behind the scenes the ID is mapped t
 ## Tests
 
 ```bash
-cd functions && npm test     # QR signing/expiry, geofence, device binding + phone-switch rule, time window, toggles, static-mode rule, registration validation, lecturer details, admin ID list, invite codes
+cd functions && npm test     # QR signing/expiry, geofence, device binding + phone-switch rule, time window, toggles, static-mode rule, registration validation, contact details, admin ID list, invite codes
 cd app && flutter analyze && flutter test
 ```
 

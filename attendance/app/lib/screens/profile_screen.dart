@@ -2,11 +2,14 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import '../../services/api.dart';
+import '../services/api.dart';
 
-/// Lecturer views and edits their name, university, mobile and email.
+/// Student or lecturer views and edits their name, university, mobile and email.
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  const ProfileScreen({super.key, required this.student});
+
+  /// Student record (`students/{id}`) when true, lecturer record (`staff/{id}`) otherwise.
+  final bool student;
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -17,7 +20,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   final _university = TextEditingController();
   final _mobile = TextEditingController();
   final _email = TextEditingController();
-  String? _staffId;
+  String? _personId;
   bool _loading = true;
   bool _saving = false;
 
@@ -29,11 +32,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _load() async {
     final Map<String, dynamic> d;
-    final String staffId;
+    final String personId;
     try {
       final token = await FirebaseAuth.instance.currentUser!.getIdTokenResult();
-      staffId = '${token.claims?['personId'] ?? ''}';
-      d = (await FirebaseFirestore.instance.collection('staff').doc(staffId).get()).data() ?? {};
+      personId = '${token.claims?['personId'] ?? ''}';
+      final collection = widget.student ? 'students' : 'staff';
+      d = (await FirebaseFirestore.instance.collection(collection).doc(personId).get()).data() ?? {};
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Could not load your details: $e')));
@@ -42,7 +46,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
     if (!mounted) return;
     setState(() {
-      _staffId = staffId;
+      _personId = personId;
       _name.text = '${d['name'] ?? ''}';
       _university.text = '${d['university'] ?? ''}';
       _mobile.text = '${d['mobile'] ?? ''}';
@@ -54,7 +58,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<void> _save() async {
     setState(() => _saving = true);
     try {
-      await Api.updateLecturerProfile(
+      await Api.updateProfile(
+        student: widget.student,
         name: _name.text.trim(),
         university: _university.text.trim(),
         mobile: _mobile.text.trim(),
@@ -77,7 +82,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : ListView(padding: const EdgeInsets.all(16), children: [
-              ListTile(contentPadding: EdgeInsets.zero, title: const Text('Staff ID'), subtitle: Text(_staffId ?? '')),
+              ListTile(contentPadding: EdgeInsets.zero, title: Text(widget.student ? 'Student ID' : 'Staff ID'), subtitle: Text(_personId ?? '')),
               const SizedBox(height: 8),
               TextField(controller: _name, decoration: const InputDecoration(labelText: 'Full name', border: OutlineInputBorder())),
               const SizedBox(height: 12),

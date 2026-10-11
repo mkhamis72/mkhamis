@@ -1,7 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import 'profile_screen.dart';
+import '../profile_screen.dart';
 
 /// Shown to a lecturer whose account an admin has not approved yet.
 class PendingApprovalScreen extends StatefulWidget {
@@ -47,7 +47,7 @@ class _PendingApprovalScreenState extends State<PendingApprovalScreen> {
               onPressed: _checking ? null : _checkAgain,
             ),
             TextButton(
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen())),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen(student: false))),
               child: const Text('Edit my details'),
             ),
             TextButton(onPressed: () => FirebaseAuth.instance.signOut(), child: const Text('Sign out')),

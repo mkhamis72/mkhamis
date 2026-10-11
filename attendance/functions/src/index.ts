@@ -7,7 +7,7 @@ import { effectiveSettings, evaluateScan, REASON_MESSAGES, SessionDoc, SessionSe
 import { LocationFix } from "./geo";
 import { buildPayload, decodePayload, encodePayload, newSecret, QrMode, SLOT_SECONDS, slotAt } from "./qr";
 import {
-  cleanLecturerDetails,
+  cleanContactDetails,
   emailForId,
   INVITE_VALID_DAYS,
   inviteProblem,
@@ -92,14 +92,17 @@ async function createAccount(
   }
 }
 
-/** Student signs up once with ID + name + password. The registering phone becomes the bound phone. */
+/** Student signs up once with ID, name, contact details and password. The registering phone becomes the bound phone. */
 export const registerStudent = onCall(async (req) => {
   const { studentId, name, password } = req.data ?? {};
   const deviceId = requireDeviceId(req.data?.deviceId);
   const id = String(studentId ?? "").trim();
+  const { details, problem } = cleanContactDetails(req.data ?? {});
+  if (problem) throw new HttpsError("invalid-argument", problem);
   const uid = await createAccount(id, String(name ?? ""), String(password ?? ""), "student");
   await db.collection("students").doc(id).set({
     name: String(name).trim(),
+    ...details,
     authUid: uid,
     boundDeviceId: deviceId,
     boundAt: Timestamp.now(),
@@ -118,7 +121,7 @@ export const registerLecturer = onCall(async (req) => {
   const code = normalizeInviteCode(String(req.data?.inviteCode ?? ""));
   const problem = validateRegistration(id, String(name ?? ""), String(password ?? ""));
   if (problem) throw new HttpsError("invalid-argument", problem);
-  const { details, problem: detailsProblem } = cleanLecturerDetails(req.data ?? {});
+  const { details, problem: detailsProblem } = cleanContactDetails(req.data ?? {});
   if (detailsProblem) throw new HttpsError("invalid-argument", detailsProblem);
 
   // Reserve the invite before creating the account, so one code can't approve two lecturers.
@@ -156,17 +159,23 @@ export const registerLecturer = onCall(async (req) => {
   return { ok: true, approved };
 });
 
-/** Lecturer edits their own name and contact details (works while pending approval too). */
-export const updateLecturerProfile = onCall(async (req) => {
-  const { uid, personId } = requireRole(req, "lecturer");
+/** Saves a user's own name + contact details to their record and their Auth display name. */
+async function updateProfile(req: CallableRequest, role: "student" | "lecturer", collection: "students" | "staff") {
+  const { uid, personId } = requireRole(req, role);
   const name = String(req.data?.name ?? "").trim();
   if (name.length < 2 || name.length > 80) throw new HttpsError("invalid-argument", "Enter your full name.");
-  const { details, problem } = cleanLecturerDetails(req.data ?? {});
+  const { details, problem } = cleanContactDetails(req.data ?? {});
   if (problem) throw new HttpsError("invalid-argument", problem);
-  await db.collection("staff").doc(personId).update({ name, ...details });
+  await db.collection(collection).doc(personId).update({ name, ...details });
   await getAuth().updateUser(uid, { displayName: name });
   return { ok: true };
-});
+}
+
+/** Lecturer edits their own name and contact details (works while pending approval too). */
+export const updateLecturerProfile = onCall((req) => updateProfile(req, "lecturer", "staff"));
+
+/** Student edits their own name and contact details. */
+export const updateStudentProfile = onCall((req) => updateProfile(req, "student", "students"));
 
 /** Admins self-register too, but only with a staff ID listed in ADMIN_STAFF_IDS. */
 export const registerAdmin = onCall(async (req) => {
